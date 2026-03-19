@@ -1,6 +1,10 @@
 <template>
-  <v-app :theme="appStore.darkMode ? 'grapeDark' : 'grapePurple'">
-    <router-view />
+  <v-app :theme="appStore.darkMode ? 'grapeDark' : 'grapeLight'" class="gv-noise">
+    <router-view v-slot="{ Component }">
+      <transition name="fade" mode="out-in">
+        <component :is="Component" />
+      </transition>
+    </router-view>
   </v-app>
 </template>
 

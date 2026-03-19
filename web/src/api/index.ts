@@ -18,9 +18,13 @@ api.interceptors.response.use(
   (res) => res,
   (err) => {
     if (err.response?.status === 401) {
-      const auth = useAuthStore()
-      auth.logout()
-      window.location.href = '/login'
+      // 仅在非登录/setup请求时清除 token 并跳转
+      const url = err.config?.url || ''
+      if (!url.includes('/login') && !url.includes('/setup')) {
+        const auth = useAuthStore()
+        auth.logout()
+        window.location.href = '/admin/login'
+      }
     }
     return Promise.reject(err)
   }

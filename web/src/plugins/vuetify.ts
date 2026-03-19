@@ -4,39 +4,45 @@ import { createVuetify } from 'vuetify'
 import * as components from 'vuetify/components'
 import * as directives from 'vuetify/directives'
 
-const grapePurple = {
+const grapeLight = {
   dark: false,
   colors: {
-    background: '#FAFAFA',
+    background: '#F4F2F7',
     surface: '#FFFFFF',
-    primary: '#6A1B9A',
-    'primary-darken-1': '#4A148C',
-    secondary: '#AB47BC',
-    'secondary-darken-1': '#7B1FA2',
-    error: '#E53935',
-    info: '#1E88E5',
-    success: '#43A047',
-    warning: '#FB8C00',
-    'on-background': '#1C1B1F',
-    'on-surface': '#1C1B1F',
+    'surface-bright': '#FFFFFF',
+    'surface-variant': '#EDE9F3',
+    primary: '#7C3AED',
+    'primary-darken-1': '#6D28D9',
+    secondary: '#10B981',
+    'secondary-darken-1': '#059669',
+    error: '#EF4444',
+    info: '#3B82F6',
+    success: '#10B981',
+    warning: '#F59E0B',
+    'on-background': '#1E1B2E',
+    'on-surface': '#1E1B2E',
+    'on-primary': '#FFFFFF',
   },
 }
 
 const grapeDark = {
   dark: true,
   colors: {
-    background: '#1A1A2E',
-    surface: '#16213E',
-    primary: '#CE93D8',
-    'primary-darken-1': '#AB47BC',
-    secondary: '#BA68C8',
-    'secondary-darken-1': '#9C27B0',
-    error: '#EF5350',
-    info: '#42A5F5',
-    success: '#66BB6A',
-    warning: '#FFA726',
-    'on-background': '#E6E1E5',
-    'on-surface': '#E6E1E5',
+    background: '#0F0B1A',
+    surface: '#1A1528',
+    'surface-bright': '#241E35',
+    'surface-variant': '#2D2640',
+    primary: '#A78BFA',
+    'primary-darken-1': '#8B5CF6',
+    secondary: '#34D399',
+    'secondary-darken-1': '#10B981',
+    error: '#F87171',
+    info: '#60A5FA',
+    success: '#34D399',
+    warning: '#FBBF24',
+    'on-background': '#E8E0F0',
+    'on-surface': '#E8E0F0',
+    'on-primary': '#0F0B1A',
   },
 }
 
@@ -44,16 +50,32 @@ export default createVuetify({
   components,
   directives,
   theme: {
-    defaultTheme: 'grapePurple',
+    defaultTheme: 'grapeDark',
     themes: {
-      grapePurple,
+      grapeLight,
       grapeDark,
     },
   },
   defaults: {
-    VCard: { elevation: 2, rounded: 'lg' },
-    VBtn: { rounded: 'lg' },
-    VTextField: { variant: 'outlined', density: 'comfortable' },
-    VSelect: { variant: 'outlined', density: 'comfortable' },
+    VCard: {
+      elevation: 0,
+      rounded: 'xl',
+    },
+    VBtn: {
+      rounded: 'lg',
+    },
+    VTextField: {
+      variant: 'outlined',
+      density: 'comfortable',
+      rounded: 'lg',
+    },
+    VSelect: {
+      variant: 'outlined',
+      density: 'comfortable',
+      rounded: 'lg',
+    },
+    VChip: {
+      rounded: 'lg',
+    },
   },
 })

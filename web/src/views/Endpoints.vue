@@ -1,105 +1,175 @@
 <template>
-  <div>
-    <div class="d-flex align-center mb-4">
-      <div class="text-h6 font-weight-medium">节点调度</div>
-      <v-spacer />
-      <v-select
-        v-model="selectedService"
-        :items="serviceOptions"
-        item-title="text"
-        item-value="value"
-        label="筛选服务"
-        density="compact"
-        variant="outlined"
-        hide-details
-        style="max-width: 240px"
-        class="mr-4"
-        clearable
-      />
-      <v-btn color="primary" prepend-icon="mdi-plus" @click="openDialog()">新增节点</v-btn>
+  <div class="endpoints-page">
+    <!-- Page header -->
+    <div class="page-header">
+      <div>
+        <h1 class="page-title">节点调度</h1>
+        <p class="page-desc">管理后端服务节点与优先级</p>
+      </div>
+      <div class="header-actions">
+        <v-select
+          v-model="selectedService"
+          :items="serviceOptions"
+          item-title="text"
+          item-value="value"
+          label="筛选服务"
+          density="compact"
+          variant="outlined"
+          hide-details
+          clearable
+          bg-color="transparent"
+          style="max-width: 220px"
+          class="filter-select"
+        />
+        <v-btn
+          color="primary"
+          prepend-icon="mdi-plus"
+          @click="openDialog()"
+          elevation="0"
+          class="add-btn"
+        >
+          新增节点
+        </v-btn>
+      </div>
     </div>
 
-    <v-card>
-      <v-table density="comfortable">
-        <thead>
-          <tr>
-            <th>ID</th>
-            <th>所属服务</th>
-            <th>地址</th>
-            <th>优先级</th>
-            <th>状态</th>
-            <th class="text-right">操作</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-for="ep in endpoints" :key="ep.id">
-            <td>{{ ep.id }}</td>
-            <td>{{ getServiceName(ep.service_id) }}</td>
-            <td class="font-weight-medium">{{ ep.host }}:{{ ep.port }}</td>
-            <td>
-              <v-chip size="small" :color="ep.priority <= 1 ? 'primary' : 'default'" variant="tonal">
-                P{{ ep.priority }}
-              </v-chip>
-            </td>
-            <td>
-              <v-chip :color="ep.status === 'online' ? 'success' : 'error'" size="small" variant="flat">
-                {{ ep.status === 'online' ? '在线' : '离线' }}
-              </v-chip>
-            </td>
-            <td class="text-right">
-              <v-btn
-                v-if="ep.status === 'online'"
-                size="small" variant="tonal" color="warning" class="mr-1"
-                @click="toggleStatus(ep, 'offline')"
-              >强制下线</v-btn>
-              <v-btn
-                v-else
-                size="small" variant="tonal" color="success" class="mr-1"
-                @click="toggleStatus(ep, 'online')"
-              >恢复上线</v-btn>
-              <v-btn icon="mdi-pencil" size="small" variant="text" @click="openDialog(ep)" />
-              <v-btn icon="mdi-delete" size="small" variant="text" color="error" @click="confirmDelete(ep)" />
-            </td>
-          </tr>
-          <tr v-if="!endpoints.length">
-            <td colspan="6" class="text-center text-medium-emphasis py-6">暂无节点</td>
-          </tr>
-        </tbody>
-      </v-table>
+    <!-- Endpoints grid -->
+    <div v-if="endpoints.length" class="endpoints-grid">
+      <div
+        v-for="ep in endpoints"
+        :key="ep.id"
+        class="endpoint-card gv-stat-card"
+        :class="{ 'endpoint-card--offline': ep.status !== 'online' }"
+      >
+        <div class="ep-header">
+          <div class="ep-status">
+            <span class="gv-dot" :class="ep.status === 'online' ? 'gv-dot--online' : 'gv-dot--offline'"></span>
+            <span class="ep-status-text" :class="ep.status === 'online' ? 'text-success' : 'text-error'">
+              {{ ep.status === 'online' ? '在线' : '离线' }}
+            </span>
+          </div>
+          <v-chip size="x-small" :color="ep.priority <= 1 ? 'primary' : 'default'" variant="tonal">
+            P{{ ep.priority }}
+          </v-chip>
+        </div>
+
+        <div class="ep-address">
+          <code>{{ ep.host }}:{{ ep.port }}</code>
+        </div>
+
+        <div class="ep-service">
+          <v-icon size="14" class="mr-1" style="opacity: 0.4">mdi-tag-outline</v-icon>
+          <span>{{ getServiceName(ep.service_id) }}</span>
+        </div>
+
+        <div class="ep-actions">
+          <v-btn
+            v-if="ep.status === 'online'"
+            size="small"
+            variant="tonal"
+            color="warning"
+            @click="toggleStatus(ep, 'offline')"
+            class="ep-action-btn"
+          >
+            <v-icon start size="16">mdi-power-plug-off</v-icon>
+            下线
+          </v-btn>
+          <v-btn
+            v-else
+            size="small"
+            variant="tonal"
+            color="success"
+            @click="toggleStatus(ep, 'online')"
+            class="ep-action-btn"
+          >
+            <v-icon start size="16">mdi-power-plug</v-icon>
+            上线
+          </v-btn>
+          <v-btn icon="mdi-pencil-outline" size="x-small" variant="text" @click="openDialog(ep)" class="action-btn" />
+          <v-btn icon="mdi-delete-outline" size="x-small" variant="text" color="error" @click="confirmDelete(ep)" class="action-btn" />
+        </div>
+      </div>
+    </div>
+
+    <!-- Empty state -->
+    <v-card v-else class="gv-glass pa-12 text-center">
+      <v-icon size="48" color="medium-emphasis" class="mb-3">mdi-server-network</v-icon>
+      <p style="opacity: 0.4; font-size: 14px">暂无节点</p>
+      <v-btn
+        variant="tonal"
+        color="primary"
+        size="small"
+        prepend-icon="mdi-plus"
+        @click="openDialog()"
+        class="mt-3"
+      >
+        添加第一个节点
+      </v-btn>
     </v-card>
 
-    <!-- 新增/编辑对话框 -->
-    <v-dialog v-model="dialog" max-width="500" persistent>
-      <v-card class="pa-6">
-        <div class="text-h6 mb-4">{{ editing ? '编辑节点' : '新增节点' }}</div>
-        <v-form @submit.prevent="handleSave">
-          <v-select
-            v-model="form.service_id"
-            :items="serviceOptions"
-            item-title="text"
-            item-value="value"
-            label="所属服务"
-            class="mb-2"
-          />
-          <v-text-field v-model="form.host" label="主机地址" class="mb-2" />
-          <v-text-field v-model.number="form.port" label="端口" type="number" class="mb-2" />
-          <v-text-field v-model.number="form.priority" label="优先级 (值越小越优先)" type="number" class="mb-4" />
-          <div class="d-flex justify-end ga-2">
-            <v-btn variant="text" @click="dialog = false">取消</v-btn>
-            <v-btn type="submit" color="primary" :loading="saving">保存</v-btn>
-          </div>
-        </v-form>
+    <!-- Create/Edit dialog -->
+    <v-dialog v-model="dialog" max-width="480" persistent>
+      <v-card class="dialog-card">
+        <div class="dialog-header">
+          <h3 class="dialog-title">{{ editing ? '编辑节点' : '新增节点' }}</h3>
+          <v-btn icon="mdi-close" size="small" variant="text" @click="dialog = false" />
+        </div>
+        <v-divider style="opacity: 0.06" />
+        <div class="dialog-body">
+          <v-form @submit.prevent="handleSave">
+            <div class="field-group">
+              <label class="field-label">所属服务</label>
+              <v-select
+                v-model="form.service_id"
+                :items="serviceOptions"
+                item-title="text"
+                item-value="value"
+                hide-details
+                bg-color="transparent"
+              />
+            </div>
+            <div class="field-row">
+              <div class="field-group" style="flex: 2">
+                <label class="field-label">主机地址</label>
+                <v-text-field v-model="form.host" placeholder="127.0.0.1" hide-details bg-color="transparent" />
+              </div>
+              <div class="field-group" style="flex: 1">
+                <label class="field-label">端口</label>
+                <v-text-field v-model.number="form.port" type="number" placeholder="8080" hide-details bg-color="transparent" />
+              </div>
+            </div>
+            <div class="field-group">
+              <label class="field-label">优先级（值越小越优先）</label>
+              <v-text-field v-model.number="form.priority" type="number" placeholder="0" hide-details bg-color="transparent" />
+            </div>
+            <div class="dialog-actions">
+              <v-btn variant="text" @click="dialog = false">取消</v-btn>
+              <v-btn type="submit" color="primary" :loading="saving" elevation="0">
+                {{ editing ? '更新' : '创建' }}
+              </v-btn>
+            </div>
+          </v-form>
+        </div>
       </v-card>
     </v-dialog>
 
-    <!-- 删除确认 -->
+    <!-- Delete confirm -->
     <v-dialog v-model="deleteDialog" max-width="400">
-      <v-card class="pa-6">
-        <div class="text-h6 mb-2">确认删除</div>
-        <p class="text-body-2 text-medium-emphasis mb-4">确定要删除节点 <strong>{{ deleteTarget?.host }}:{{ deleteTarget?.port }}</strong> 吗？</p>
-        <div class="d-flex justify-end ga-2">
-          <v-btn variant="text" @click="deleteDialog = false">取消</v-btn>
-          <v-btn color="error" :loading="deleting" @click="handleDelete">删除</v-btn>
+      <v-card class="dialog-card">
+        <div class="dialog-body" style="padding-top: 32px">
+          <div class="text-center mb-4">
+            <div class="delete-icon-wrap">
+              <v-icon size="28" color="error">mdi-delete-alert-outline</v-icon>
+            </div>
+          </div>
+          <h3 class="text-center mb-2" style="font-size: 16px; font-weight: 600">确认删除</h3>
+          <p class="text-center mb-6" style="font-size: 13px; opacity: 0.5">
+            确定要删除节点「{{ deleteTarget?.host }}:{{ deleteTarget?.port }}」吗？
+          </p>
+          <div class="dialog-actions">
+            <v-btn variant="text" @click="deleteDialog = false">取消</v-btn>
+            <v-btn color="error" :loading="deleting" @click="handleDelete" elevation="0">删除</v-btn>
+          </div>
         </div>
       </v-card>
     </v-dialog>
@@ -212,3 +282,176 @@ onMounted(async () => {
   await fetchEndpoints()
 })
 </script>
+
+<style scoped>
+.endpoints-page {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.page-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.page-title {
+  font-size: 24px;
+  font-weight: 700;
+  letter-spacing: -0.5px;
+  margin: 0;
+  line-height: 1.2;
+}
+
+.page-desc {
+  font-size: 13px;
+  opacity: 0.45;
+  margin-top: 4px;
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.add-btn {
+  box-shadow: 0 2px 12px rgba(124, 58, 237, 0.25) !important;
+}
+
+/* Endpoints grid */
+.endpoints-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 14px;
+}
+
+.endpoint-card {
+  padding: 20px;
+  border-radius: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.endpoint-card--offline {
+  opacity: 0.65;
+}
+
+.ep-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.ep-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.ep-status-text {
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.ep-address code {
+  font-family: 'JetBrains Mono', monospace !important;
+  font-size: 16px;
+  font-weight: 500;
+  letter-spacing: -0.3px;
+}
+
+.ep-service {
+  display: flex;
+  align-items: center;
+  font-size: 12px;
+  opacity: 0.5;
+}
+
+.ep-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 4px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+.ep-action-btn {
+  flex: 1;
+}
+
+.action-btn {
+  opacity: 0.4;
+  transition: opacity 0.15s ease;
+}
+.action-btn:hover {
+  opacity: 1;
+}
+
+/* Dialog styles */
+.dialog-card {
+  border-radius: 20px !important;
+  overflow: hidden;
+}
+
+.dialog-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 20px 24px;
+}
+
+.dialog-title {
+  font-size: 16px;
+  font-weight: 600;
+  margin: 0;
+}
+
+.dialog-body {
+  padding: 24px;
+}
+
+.field-group {
+  margin-bottom: 16px;
+}
+
+.field-row {
+  display: flex;
+  gap: 12px;
+}
+
+.field-label {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  opacity: 0.5;
+  margin-bottom: 6px;
+  padding-left: 4px;
+}
+
+.dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 24px;
+}
+
+.delete-icon-wrap {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 56px;
+  height: 56px;
+  border-radius: 16px;
+  background: rgba(239, 68, 68, 0.1);
+}
+</style>
