@@ -43,38 +43,35 @@ func (s *RateLimiterStore) Update(key string, r rate.Limit, burst int) {
 	}
 }
 
-func RateLimit() gin.HandlerFunc {
-	return func(c *gin.Context) {
-		suffix := c.Param("suffix")
-		if suffix == "" {
-			c.Next()
-			return
-		}
-
-		var cfg model.Config
-		var svc model.Service
-		if err := database.DB.Where("suffix = ?", suffix).First(&svc).Error; err != nil {
-			c.Next()
-			return
-		}
-		if err := database.DB.Where("service_id = ?", svc.ID).First(&cfg).Error; err != nil {
-			c.Next()
-			return
-		}
-
-		if cfg.RateLimit <= 0 {
-			c.Next()
-			return
-		}
-
-		// 按 suffix + IP 维度限流
-		key := suffix + ":" + c.ClientIP()
-		limiter := store.Get(key, rate.Limit(cfg.RateLimit), cfg.Burst)
-
-		if !limiter.Allow() {
-			c.AbortWithStatusJSON(http.StatusTooManyRequests, gin.H{"error": "rate limit exceeded"})
-			return
-		}
-		c.Next()
+// RateLimitHandler 可直接调用的限流处理
+func RateLimitHandler(c *gin.Context) {
+	suffix := c.Param("suffix")
+	if suffix == "" {
+		return
 	}
+
+	var cfg model.Config
+	var svc model.Service
+	if err := database.DB.Where("suffix = ?", suffix).First(&svc).Error; err != nil {
+		return
+	}
+	if err := database.DB.Where("service_id = ?", svc.ID).First(&cfg).Error; err != nil {
+		return
+	}
+
+	if cfg.RateLimit <= 0 {
+		return
+	}
+
+	key := suffix + ":" + c.ClientIP()
+	limiter := store.Get(key, rate.Limit(cfg.RateLimit), cfg.Burst)
+
+	if !limiter.Allow() {
+		c.AbortWithStatusJSON(http.StatusTooManyRequests, gin.H{"error": "rate limit exceeded"})
+	}
+}
+
+// RateLimit 返回 gin 中间件
+func RateLimit() gin.HandlerFunc {
+	return RateLimitHandler
 }

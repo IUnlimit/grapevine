@@ -59,73 +59,118 @@ func main() {
 	// 管理 API
 	api := r.Group("/api/admin")
 	{
+		api.GET("/setup/status", handler.SetupStatus)
+		api.POST("/setup", handler.Setup)
 		api.POST("/login", handler.Login)
 
 		auth := api.Group("")
 		auth.Use(middleware.JWTAuth())
 		{
-			// Dashboard
 			auth.GET("/dashboard", handler.Dashboard)
 
-			// Services
 			auth.GET("/services", handler.ListServices)
 			auth.GET("/services/:id", handler.GetService)
 			auth.POST("/services", handler.CreateService)
 			auth.PUT("/services/:id", handler.UpdateService)
 			auth.DELETE("/services/:id", handler.DeleteService)
 
-			// Endpoints
 			auth.GET("/endpoints", handler.ListEndpoints)
 			auth.GET("/endpoints/:id", handler.GetEndpoint)
 			auth.POST("/endpoints", handler.CreateEndpoint)
 			auth.PUT("/endpoints/:id", handler.UpdateEndpoint)
 			auth.DELETE("/endpoints/:id", handler.DeleteEndpoint)
 
-			// Policies
 			auth.GET("/policies/:service_id", handler.GetPolicy)
 			auth.PUT("/policies/:service_id", handler.UpsertPolicy)
 
-			// Users
 			auth.GET("/users", handler.ListUsers)
 			auth.POST("/users", handler.CreateUser)
 			auth.DELETE("/users/:id", handler.DeleteUser)
 		}
 	}
 
-	// 前端静态文件服务 (生产环境)
+	// 准备静态文件服务
 	webDist := "web/dist"
+	var staticFS fs.FS
+	var fileServer http.Handler
+	hasStatic := false
 	if _, err := os.Stat(webDist); err == nil {
-		staticFS := os.DirFS(webDist)
-		fileServer := http.FileServer(http.FS(staticFS))
+		staticFS = os.DirFS(webDist)
+		fileServer = http.FileServer(http.FS(staticFS))
+		hasStatic = true
+	}
 
-		// 管理后台路由 - 所有非 API、非代理的请求返回 index.html (SPA)
-		r.NoRoute(func(c *gin.Context) {
-			path := c.Request.URL.Path
+	// NoRoute: 静态文件 → 代理转发 → 404
+	r.NoRoute(func(c *gin.Context) {
+		path := c.Request.URL.Path
 
-			// API 和代理请求不走静态文件
-			if strings.HasPrefix(path, "/api/") {
-				c.JSON(http.StatusNotFound, gin.H{"error": "not found"})
-				return
-			}
+		// 1) /api 开头的未匹配路由直接 404
+		if strings.HasPrefix(path, "/api/") {
+			c.JSON(http.StatusNotFound, gin.H{"error": "not found"})
+			return
+		}
 
-			// 尝试提供静态文件
-			if f, err := fs.Stat(staticFS, strings.TrimPrefix(path, "/")); err == nil && !f.IsDir() {
+		// 2) /admin/* 管理后台路由 → SPA fallback
+		if strings.HasPrefix(path, "/admin") {
+			if hasStatic {
+				c.Request.URL.Path = "/"
 				fileServer.ServeHTTP(c.Writer, c.Request)
 				return
 			}
+			c.JSON(http.StatusNotFound, gin.H{"error": "not found"})
+			return
+		}
 
-			// SPA fallback: 返回 index.html
-			c.Request.URL.Path = "/"
-			fileServer.ServeHTTP(c.Writer, c.Request)
-		})
-	}
+		// 3) 尝试提供静态文件
+		if hasStatic {
+			trimmed := strings.TrimPrefix(path, "/")
+			if trimmed != "" {
+				if f, err := fs.Stat(staticFS, trimmed); err == nil && !f.IsDir() {
+					fileServer.ServeHTTP(c.Writer, c.Request)
+					return
+				}
+			}
+		}
 
-	// 代理路由 - 带限流和熔断
-	proxyGroup := r.Group("/:suffix")
-	proxyGroup.Use(middleware.RateLimit(), middleware.CircuitBreak())
-	{
-		proxyGroup.Any("/*path", proxy.ProxyHandler())
-	}
+		// 4) 尝试代理转发: 从路径中提取 /{suffix}/{path...}
+		parts := strings.SplitN(strings.TrimPrefix(path, "/"), "/", 2)
+		suffix := parts[0]
+		subPath := "/"
+		if len(parts) > 1 {
+			subPath = "/" + parts[1]
+		}
+
+		if suffix == "" {
+			// 根路径 "/" → SPA fallback
+			if hasStatic {
+				c.Request.URL.Path = "/"
+				fileServer.ServeHTTP(c.Writer, c.Request)
+				return
+			}
+			c.JSON(http.StatusNotFound, gin.H{"error": "not found"})
+			return
+		}
+
+		// 设置参数供中间件和 handler 使用
+		c.Params = append(c.Params, gin.Param{Key: "suffix", Value: suffix})
+		c.Params = append(c.Params, gin.Param{Key: "path", Value: subPath})
+
+		// 限流 → 熔断 → 代理
+		middleware.RateLimitHandler(c)
+		if c.IsAborted() {
+			return
+		}
+		middleware.CircuitBreakHandler(c)
+		if c.IsAborted() {
+			return
+		}
+
+		// 代理转发
+		proxy.ProxyHandler()(c)
+
+		// 记录熔断结果
+		middleware.CircuitBreakRecord(c)
+	})
 
 	log.Printf("Grapevine gateway starting on :%s", cfg.Port)
 	if err := r.Run(":" + cfg.Port); err != nil {

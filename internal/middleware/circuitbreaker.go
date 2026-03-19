@@ -142,42 +142,56 @@ func GetBreaker(suffix string, threshold int) *CircuitBreaker {
 	return cb
 }
 
-func CircuitBreak() gin.HandlerFunc {
-	return func(c *gin.Context) {
-		suffix := c.Param("suffix")
-		if suffix == "" {
-			c.Next()
-			return
-		}
+// CircuitBreakHandler 可直接调用的熔断处理（仅检查是否放行）
+func CircuitBreakHandler(c *gin.Context) {
+	suffix := c.Param("suffix")
+	if suffix == "" {
+		return
+	}
 
-		var svc model.Service
-		if err := database.DB.Where("suffix = ?", suffix).First(&svc).Error; err != nil {
-			c.Next()
-			return
-		}
-		var cfg model.Config
-		if err := database.DB.Where("service_id = ?", svc.ID).First(&cfg).Error; err != nil {
-			c.Next()
-			return
-		}
+	var svc model.Service
+	if err := database.DB.Where("suffix = ?", suffix).First(&svc).Error; err != nil {
+		return
+	}
+	var cfg model.Config
+	if err := database.DB.Where("service_id = ?", svc.ID).First(&cfg).Error; err != nil {
+		return
+	}
 
-		if cfg.CircuitBreakThreshold <= 0 {
-			c.Next()
-			return
-		}
+	if cfg.CircuitBreakThreshold <= 0 {
+		return
+	}
 
-		cb := GetBreaker(suffix, cfg.CircuitBreakThreshold)
-		if !cb.Allow() {
-			c.AbortWithStatusJSON(http.StatusServiceUnavailable, gin.H{"error": "service circuit breaker open"})
-			return
-		}
+	cb := GetBreaker(suffix, cfg.CircuitBreakThreshold)
+	if !cb.Allow() {
+		c.AbortWithStatusJSON(http.StatusServiceUnavailable, gin.H{"error": "service circuit breaker open"})
+		return
+	}
 
-		c.Next()
+	// 记录结果需要在响应之后，由调用方负责
+	c.Set("_circuit_breaker", cb)
+}
 
+// CircuitBreakRecord 在代理完成后记录结果
+func CircuitBreakRecord(c *gin.Context) {
+	if v, ok := c.Get("_circuit_breaker"); ok {
+		cb := v.(*CircuitBreaker)
 		if c.Writer.Status() >= 500 {
 			cb.RecordFailure()
 		} else {
 			cb.RecordSuccess()
 		}
+	}
+}
+
+// CircuitBreak 返回 gin 中间件
+func CircuitBreak() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		CircuitBreakHandler(c)
+		if c.IsAborted() {
+			return
+		}
+		c.Next()
+		CircuitBreakRecord(c)
 	}
 }
