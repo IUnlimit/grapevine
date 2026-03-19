@@ -1,0 +1,32 @@
+services:
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: "123456"
+      POSTGRES_DB: grapevine
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  grapevine:
+    build: .
+    ports:
+      - "8888:8888"
+    environment:
+      GRAPEVINE_PORT: "8888"
+      DB_URL: "postgres://postgres:123456@postgres:5432/grapevine?sslmode=disable"
+      LOG_LEVEL: "info"
+      JWT_SECRET: "grapevine_secret"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+volumes:
+  pgdata:
